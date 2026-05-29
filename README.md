@@ -57,8 +57,10 @@ print(engine.invoke(prompt="quais serviços?", context=ctx).content)
 
 ## Real LLM providers
 
-For OpenAI Chat Completions, install the optional extra and pass any
-`OpenAI`-shaped client to the bundled adapter:
+Adapters live in `adjacency_agents.adapters.*` and accept any
+duck-typed client — the SDKs are optional dependencies.
+
+### OpenAI
 
 ```bash
 pip install -e ".[openai]"
@@ -78,11 +80,36 @@ answer = engine.invoke(
 )
 ```
 
-`AsyncOpenAIClient` is the async counterpart for use with
-`engine.ainvoke(...)`. Both wrap the engine's provider-agnostic JSON
-schema into OpenAI's `tools=[{type: "function", ...}]` format, parse
-`tool_calls` back into the internal `ToolCall`, and send
-`tool_choice="none"` during synthesis.
+`AsyncOpenAIClient` is the async counterpart for `engine.ainvoke(...)`.
+
+### Anthropic
+
+```bash
+pip install -e ".[anthropic]"
+```
+
+```python
+from anthropic import Anthropic
+
+from adjacency_agents import DeterministicEngine, UserContext, tool_node
+from adjacency_agents.adapters.anthropic import AnthropicClient
+
+adapter = AnthropicClient(
+    client=Anthropic(), model="claude-haiku-4-5", max_tokens=512
+)
+engine = DeterministicEngine(llm=adapter, tools=[listar_servicos])
+answer = engine.invoke(
+    prompt="quais serviços?",
+    context=UserContext(session_id="s1", capabilities={"public"}),
+)
+```
+
+`AsyncAnthropicClient` is the async counterpart.
+
+Both adapters translate the engine's provider-agnostic JSON schema
+into the provider's tool format, parse tool calls back into the
+internal `ToolCall`, and disable tool calling during synthesis (so the
+final answer is always plain text).
 
 ## Capabilities
 

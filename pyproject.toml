@@ -22,6 +22,7 @@ dev = [
     "mypy>=1.10",
 ]
 openai = ["openai>=1.0"]
+anthropic = ["anthropic>=0.40"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

@@ -241,6 +241,55 @@ Translation rules:
 - `extra_create_kwargs={"temperature": 0.2, ...}` lets callers pass any
   additional argument the SDK accepts.
 
+### Anthropic
+
+```python
+from anthropic import Anthropic, AsyncAnthropic
+
+from adjacency_agents.adapters.anthropic import (
+    AnthropicClient,
+    AsyncAnthropicClient,
+)
+
+adapter = AnthropicClient(
+    client=Anthropic(),
+    model="claude-haiku-4-5",
+    max_tokens=512,
+)
+async_adapter = AsyncAnthropicClient(
+    client=AsyncAnthropic(),
+    model="claude-haiku-4-5",
+)
+```
+
+Optional install:
+
+```bash
+pip install "adjacency-agents[anthropic]"
+```
+
+The adapter expects a duck-typed client with
+`client.messages.create(**kwargs)`. Translation rules:
+
+- Internal JSON schema is projected to `{"name", "description",
+  "input_schema"}`. There is no `function` envelope; `input_schema` IS
+  the JSON schema body.
+- `Message(role="system")` entries are pulled out of the conversation
+  and concatenated into the top-level `system` kwarg. Multiple system
+  messages are joined with two newlines.
+- `Message(role="tool", name=X, content=Y)` is rewritten as
+  `{"role": "user", "content": "[tool: X] Y"}` so the API does not
+  reject it for lacking a paired `tool_use` block.
+- `allow_tool_calls=False` (synthesis) omits `tools` entirely. A
+  `tool_use` content block returned anyway raises `SynthesisError`.
+- The response is a list of content blocks; `text` blocks are
+  concatenated, the first `tool_use` block becomes a `ToolCall` with
+  the already-decoded `input` dict.
+- `max_tokens` defaults to 1024 and is overridable per adapter
+  instance.
+- `extra_create_kwargs` forwards any additional SDK argument
+  (`temperature`, `top_p`, `stop_sequences`, ...).
+
 ## Errors
 
 All exceptions inherit from `AdjacencyAgentsError`:
