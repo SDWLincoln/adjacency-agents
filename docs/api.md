@@ -203,6 +203,44 @@ class AsyncLLMClient(Protocol):
 examples. It enforces `allow_tool_calls=False` at the protocol level
 during synthesis.
 
+## Provider adapters
+
+### OpenAI
+
+```python
+from openai import OpenAI, AsyncOpenAI
+
+from adjacency_agents.adapters.openai import OpenAIClient, AsyncOpenAIClient
+
+adapter      = OpenAIClient(client=OpenAI(), model="gpt-4o-mini")
+async_adapter = AsyncOpenAIClient(client=AsyncOpenAI(), model="gpt-4o-mini")
+```
+
+Optional install:
+
+```bash
+pip install "adjacency-agents[openai]"
+```
+
+The adapter has no hard dependency on `openai`: it expects a duck-typed
+client with `client.chat.completions.create(**kwargs)` (sync) or the
+awaitable equivalent (async). This makes it easy to use the same code
+with a self-hosted compatibility shim or tests.
+
+Translation rules:
+
+- Internal JSON schema (from `build_json_schema`) is wrapped in
+  `{"type": "function", "function": {"name", "description", "parameters"}}`.
+- `Message(role="tool", name=X, content=Y)` is rewritten as
+  `{"role": "system", "content": "[tool: X] Y"}` so OpenAI does not
+  reject it for lacking a paired `tool_calls` block.
+- `allow_tool_calls=False` (synthesis) sets `tool_choice="none"` and
+  omits `tools`. A `tool_call` returned anyway raises `SynthesisError`.
+- Tool arguments are decoded from the JSON string returned by the API;
+  non-JSON or non-object payloads raise `InvalidToolCallError`.
+- `extra_create_kwargs={"temperature": 0.2, ...}` lets callers pass any
+  additional argument the SDK accepts.
+
 ## Errors
 
 All exceptions inherit from `AdjacencyAgentsError`:

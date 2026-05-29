@@ -55,6 +55,35 @@ ctx = UserContext(session_id="s1", capabilities={"public"})
 print(engine.invoke(prompt="quais serviços?", context=ctx).content)
 ```
 
+## Real LLM providers
+
+For OpenAI Chat Completions, install the optional extra and pass any
+`OpenAI`-shaped client to the bundled adapter:
+
+```bash
+pip install -e ".[openai]"
+```
+
+```python
+from openai import OpenAI
+
+from adjacency_agents import DeterministicEngine, UserContext, tool_node
+from adjacency_agents.adapters.openai import OpenAIClient
+
+adapter = OpenAIClient(client=OpenAI(), model="gpt-4o-mini")
+engine = DeterministicEngine(llm=adapter, tools=[listar_servicos])
+answer = engine.invoke(
+    prompt="quais serviços?",
+    context=UserContext(session_id="s1", capabilities={"public"}),
+)
+```
+
+`AsyncOpenAIClient` is the async counterpart for use with
+`engine.ainvoke(...)`. Both wrap the engine's provider-agnostic JSON
+schema into OpenAI's `tools=[{type: "function", ...}]` format, parse
+`tool_calls` back into the internal `ToolCall`, and send
+`tool_choice="none"` during synthesis.
+
 ## Capabilities
 
 Capabilities are short string labels derived from trusted facts in your
