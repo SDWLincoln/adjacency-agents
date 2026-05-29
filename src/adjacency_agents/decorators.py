@@ -8,8 +8,9 @@ is the explicit responsibility of ``ToolRegistry`` (§4.1, §22.2).
 from __future__ import annotations
 
 import inspect
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable, Literal
+from typing import Any, Literal
 
 from adjacency_agents.models import ToolPolicy
 
@@ -103,7 +104,7 @@ def tool_node(
 def get_spec(fn: Callable[..., Any]) -> ToolNodeSpec:
     """Return the ToolNodeSpec attached by ``@tool_node``."""
     spec = getattr(fn, _SPEC_ATTR, None)
-    if spec is None:
+    if not isinstance(spec, ToolNodeSpec):
         raise ValueError(
             f"{getattr(fn, '__name__', fn)!r} is not a @tool_node-decorated function"
         )

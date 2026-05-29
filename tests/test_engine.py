@@ -16,6 +16,7 @@ from adjacency_agents.errors import (
     InvalidToolCallError,
     InvalidTransitionError,
     MaxStepsExceededError,
+    SynthesisError,
     ToolNotAllowedError,
     ToolNotFoundError,
 )
@@ -31,6 +32,7 @@ def _ctx(*caps: str, metadata=None) -> UserContext:
 
 
 # --- Allowlist exposure -----------------------------------------------
+
 
 @tool_node(requires=["public"])
 def list_services() -> str:
@@ -53,9 +55,7 @@ def reissue_registered() -> str:
 class TestAllowlistExposure:
     def test_llm_only_sees_allowed_tools(self):
         fake = FakeLLMClient(script=[FinalAnswer(content="done")])
-        eng = DeterministicEngine(
-            llm=fake, tools=[reissue_guest, reissue_registered]
-        )
+        eng = DeterministicEngine(llm=fake, tools=[reissue_guest, reissue_registered])
         eng.invoke(prompt="oi", context=_ctx("public", "guest"))
         tools_sent = fake.calls[0]["tools"]
         names = {t["title"] for t in tools_sent}
@@ -64,9 +64,7 @@ class TestAllowlistExposure:
 
     def test_llm_does_not_see_tools_outside_scenario(self):
         fake = FakeLLMClient(script=[FinalAnswer(content="done")])
-        eng = DeterministicEngine(
-            llm=fake, tools=[reissue_guest, reissue_registered]
-        )
+        eng = DeterministicEngine(llm=fake, tools=[reissue_guest, reissue_registered])
         eng.invoke(prompt="oi", context=_ctx("public", "registered"))
         names = {t["title"] for t in fake.calls[0]["tools"]}
         assert "reissue_registered" in names
@@ -74,6 +72,7 @@ class TestAllowlistExposure:
 
 
 # --- ToolCall execution & validation ----------------------------------
+
 
 class TestToolCall:
     def test_valid_tool_call_executes(self):
@@ -91,9 +90,7 @@ class TestToolCall:
 
     def test_tool_call_for_disallowed_tool_fails(self):
         fake = FakeLLMClient(script=[ToolCall(name="reissue_registered")])
-        eng = DeterministicEngine(
-            llm=fake, tools=[reissue_registered]
-        )
+        eng = DeterministicEngine(llm=fake, tools=[reissue_registered])
         with pytest.raises(ToolNotAllowedError):
             eng.invoke(prompt="x", context=_ctx("public", "guest"))
 
@@ -115,6 +112,7 @@ class TestToolCall:
 
 
 # --- Response normalisation -------------------------------------------
+
 
 @tool_node(requires=["public"])
 def returns_dict() -> dict:
@@ -183,11 +181,12 @@ class TestResponseHandling:
             ]
         )
         eng = DeterministicEngine(llm=fake, tools=[returns_observation])
-        with pytest.raises(Exception):
+        with pytest.raises(SynthesisError):
             eng.invoke(prompt="x", context=_ctx("public"))
 
 
 # --- EnrichedPointer transitions --------------------------------------
+
 
 @tool_node(
     requires=["registered"],
@@ -222,23 +221,17 @@ class TestPointerTransitions:
 
     def test_pointer_to_non_neighbor_fails(self):
         fake = FakeLLMClient(script=[ToolCall(name="search_no_neighbor")])
-        eng = DeterministicEngine(
-            llm=fake, tools=[search_no_neighbor, detail_step]
-        )
+        eng = DeterministicEngine(llm=fake, tools=[search_no_neighbor, detail_step])
         with pytest.raises(InvalidTransitionError):
             eng.invoke(prompt="x", context=_ctx("registered"))
 
     def test_pointer_to_unknown_tool_fails(self):
-        @tool_node(
-            requires=["registered"], structural_neighbors=["detail_step"]
-        )
+        @tool_node(requires=["registered"], structural_neighbors=["detail_step"])
         def search_ghost() -> EnrichedPointer:
             return EnrichedPointer(next_tool="ghost", kwargs={})
 
         fake = FakeLLMClient(script=[ToolCall(name="search_ghost")])
-        eng = DeterministicEngine(
-            llm=fake, tools=[search_ghost, detail_step]
-        )
+        eng = DeterministicEngine(llm=fake, tools=[search_ghost, detail_step])
         with pytest.raises(InvalidTransitionError):
             eng.invoke(prompt="x", context=_ctx("registered"))
 
@@ -255,14 +248,13 @@ class TestPointerTransitions:
             return EnrichedPointer(next_tool="admin_only", kwargs={})
 
         fake = FakeLLMClient(script=[ToolCall(name="search_admin")])
-        eng = DeterministicEngine(
-            llm=fake, tools=[search_admin, admin_only]
-        )
+        eng = DeterministicEngine(llm=fake, tools=[search_admin, admin_only])
         with pytest.raises(InvalidTransitionError):
             eng.invoke(prompt="x", context=_ctx("registered"))
 
 
 # --- Max steps ---------------------------------------------------------
+
 
 @tool_node(
     requires=["public"],
@@ -284,14 +276,13 @@ def loop_b() -> EnrichedPointer:
 class TestMaxSteps:
     def test_max_steps_interrupts_cycle(self):
         fake = FakeLLMClient(script=[ToolCall(name="loop_a")])
-        eng = DeterministicEngine(
-            llm=fake, tools=[loop_a, loop_b], max_steps=4
-        )
+        eng = DeterministicEngine(llm=fake, tools=[loop_a, loop_b], max_steps=4)
         with pytest.raises(MaxStepsExceededError):
             eng.invoke(prompt="x", context=_ctx("public"))
 
 
 # --- Context injection in execution -----------------------------------
+
 
 @tool_node(
     requires=["registered"],
@@ -333,6 +324,7 @@ class TestContextInjection:
 
 
 # --- Multi-turn messages ----------------------------------------------
+
 
 class TestMessages:
     def test_messages_passed_through(self):

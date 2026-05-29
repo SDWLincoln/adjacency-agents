@@ -17,9 +17,7 @@ from adjacency_agents.llm import FakeLLMClient
 
 
 def _ctx(*c, metadata=None):
-    return UserContext(
-        session_id="s", capabilities=set(c), metadata=metadata or {}
-    )
+    return UserContext(session_id="s", capabilities=set(c), metadata=metadata or {})
 
 
 @tool_node(
@@ -35,9 +33,7 @@ def consult(registration_id: str) -> str:
     structural_neighbors=["consult"],
 )
 def search_then_consult() -> EnrichedPointer:
-    return EnrichedPointer(
-        next_tool="consult", kwargs={"registration_id": "leaked"}
-    )
+    return EnrichedPointer(next_tool="consult", kwargs={"registration_id": "leaked"})
 
 
 def test_pointer_supplying_injected_arg_fails():

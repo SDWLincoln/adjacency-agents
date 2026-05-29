@@ -77,18 +77,14 @@ class TestChainAtoBtoCtoObservation:
                 FinalAnswer(content="resposta final"),
             ]
         )
-        eng = DeterministicEngine(
-            llm=fake, tools=[a_three, b_mid, c_obs]
-        )
+        eng = DeterministicEngine(llm=fake, tools=[a_three, b_mid, c_obs])
         out = eng.invoke(prompt="x", context=_ctx("public"))
         assert out.content == "resposta final"
         assert len(fake.calls) == 2
 
     def test_max_steps_too_low_aborts_before_synthesis(self):
         fake = FakeLLMClient(script=[ToolCall(name="a_three")])
-        eng = DeterministicEngine(
-            llm=fake, tools=[a_three, b_mid, c_obs], max_steps=2
-        )
+        eng = DeterministicEngine(llm=fake, tools=[a_three, b_mid, c_obs], max_steps=2)
         with pytest.raises(MaxStepsExceededError):
             eng.invoke(prompt="x", context=_ctx("public"))
 

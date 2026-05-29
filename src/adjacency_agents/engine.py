@@ -19,9 +19,9 @@ import asyncio
 import dataclasses
 import json
 import threading
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import is_dataclass
-from typing import Any, Callable, Literal
+from typing import Any, Literal, cast
 
 from pydantic import BaseModel
 
@@ -225,9 +225,7 @@ class DeterministicEngine:
                     attempted_step=steps,
                     tool_name=current_spec.name,
                 )
-                raise MaxStepsExceededError(
-                    f"exceeded max_steps={self.max_steps}"
-                )
+                raise MaxStepsExceededError(f"exceeded max_steps={self.max_steps}")
 
             # Engine-side validation/injection keeps its specific type
             # (§19.2). It happens *before* the user tool body runs.
@@ -357,20 +355,24 @@ class DeterministicEngine:
     ) -> ToolCall | FinalAnswer | str:
         acomplete = getattr(self._llm, "acomplete", None)
         if acomplete is not None:
-            return await acomplete(
-                messages=messages,
-                tools=tools,
-                allow_tool_calls=allow_tool_calls,
+            return cast(
+                "ToolCall | FinalAnswer | str",
+                await acomplete(
+                    messages=messages,
+                    tools=tools,
+                    allow_tool_calls=allow_tool_calls,
+                ),
             )
         complete = getattr(self._llm, "complete", None)
         if complete is None:
-            raise TypeError(
-                "llm must expose .complete or .acomplete (§18)"
-            )
-        return complete(
-            messages=messages,
-            tools=tools,
-            allow_tool_calls=allow_tool_calls,
+            raise TypeError("llm must expose .complete or .acomplete (§18)")
+        return cast(
+            "ToolCall | FinalAnswer | str",
+            complete(
+                messages=messages,
+                tools=tools,
+                allow_tool_calls=allow_tool_calls,
+            ),
         )
 
     def _resolve_initial_call(
@@ -383,9 +385,7 @@ class DeterministicEngine:
         if not self.registry.has(call.name):
             raise ToolNotFoundError(call.name)
         if call.name not in allowed_names:
-            raise ToolNotAllowedError(
-                f"{call.name!r} is not allowed in this context"
-            )
+            raise ToolNotAllowedError(f"{call.name!r} is not allowed in this context")
         if call.name not in visible_names:
             # LLM-visible allowlist excludes hidden tools (§14.5.4).
             raise ToolNotAllowedError(
@@ -404,8 +404,7 @@ class DeterministicEngine:
         # and kwargs do not include injected params.
         if not self.registry.has(pointer.next_tool):
             raise InvalidTransitionError(
-                f"{current_spec.name!r}: pointer target "
-                f"{pointer.next_tool!r} not found"
+                f"{current_spec.name!r}: pointer target {pointer.next_tool!r} not found"
             )
         if pointer.next_tool not in current_spec.structural_neighbors:
             raise InvalidTransitionError(
@@ -441,9 +440,7 @@ class DeterministicEngine:
         if spec.is_coroutine:
             return await spec.fn(**full_kwargs)
         if sync_tool_strategy == "thread":
-            return await _run_sync_callable_in_thread(
-                lambda: spec.fn(**full_kwargs)
-            )
+            return await _run_sync_callable_in_thread(lambda: spec.fn(**full_kwargs))
         return spec.fn(**full_kwargs)
 
     async def _synthesize(
@@ -461,9 +458,7 @@ class DeterministicEngine:
             )
         payload = _safe_json(observation.data)
         synthesis_messages: list[Message] = list(conversation)
-        synthesis_messages.append(
-            Message(role="tool", content=payload, name=tool_name)
-        )
+        synthesis_messages.append(Message(role="tool", content=payload, name=tool_name))
         if observation.summary_hint:
             synthesis_messages.append(
                 Message(
@@ -471,9 +466,7 @@ class DeterministicEngine:
                     content=f"Tool hint: {observation.summary_hint}",
                 )
             )
-        synthesis_messages.append(
-            Message(role="system", content=SYNTHESIS_INSTRUCTION)
-        )
+        synthesis_messages.append(Message(role="system", content=SYNTHESIS_INSTRUCTION))
 
         trace.record(
             "synthesis_requested",
@@ -486,9 +479,7 @@ class DeterministicEngine:
             allow_tool_calls=False,
         )
         if isinstance(out, ToolCall):
-            raise SynthesisError(
-                "LLM returned a ToolCall during synthesis (§14.7.3)"
-            )
+            raise SynthesisError("LLM returned a ToolCall during synthesis (§14.7.3)")
         if isinstance(out, FinalAnswer):
             trace.record("synthesis_completed", result_type="FinalAnswer")
             trace.record("final_answer_returned", source="synthesis")
@@ -508,9 +499,7 @@ class DeterministicEngine:
         conversation: list[Message],
         trace: ExecutionTrace,
     ) -> FinalAnswer:
-        wrapped = ToolExecutionError(
-            f"tool {tool_name!r} raised {type(exc).__name__}"
-        )
+        wrapped = ToolExecutionError(f"tool {tool_name!r} raised {type(exc).__name__}")
         wrapped.__cause__ = exc
 
         if self.tool_error_mode == "raise":
@@ -535,6 +524,7 @@ class DeterministicEngine:
 
 
 # ---- helpers ----------------------------------------------------------
+
 
 def _normalize_conversation(
     *,

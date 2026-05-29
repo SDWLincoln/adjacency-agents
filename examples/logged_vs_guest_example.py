@@ -40,9 +40,7 @@ def run_guest_flow():
 
 
 def run_registered_flow():
-    fake = FakeLLMClient(
-        script=[ToolCall(name="segunda_via_com_cadastro")]
-    )
+    fake = FakeLLMClient(script=[ToolCall(name="segunda_via_com_cadastro")])
     engine = DeterministicEngine(
         llm=fake,
         tools=[segunda_via_sem_login, segunda_via_com_cadastro],

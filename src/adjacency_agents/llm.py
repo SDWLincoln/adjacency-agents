@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import Any, Protocol, runtime_checkable
 
-from adjacency_agents.errors import InvalidToolCallError, SynthesisError
+from adjacency_agents.errors import SynthesisError
 from adjacency_agents.models import FinalAnswer, Message, ToolCall
 
 

@@ -12,8 +12,8 @@ from adjacency_agents import (
     UserContext,
 )
 
-
 # --- UserContext --------------------------------------------------------
+
 
 class TestUserContext:
     def test_session_id_and_capabilities_are_required(self):
@@ -27,12 +27,15 @@ class TestUserContext:
         assert ctx.metadata == {}
 
     def test_is_frozen(self):
+        from dataclasses import FrozenInstanceError
+
         ctx = UserContext(session_id="s1", capabilities={"public"})
-        with pytest.raises(Exception):
+        with pytest.raises(FrozenInstanceError):
             ctx.session_id = "other"  # type: ignore[misc]
 
 
 # --- Message ------------------------------------------------------------
+
 
 class TestMessage:
     def test_user_message(self):
@@ -43,11 +46,12 @@ class TestMessage:
         assert msg.metadata == {}
 
     def test_invalid_role_rejected(self):
-        with pytest.raises(Exception):
+        with pytest.raises(ValueError):
             Message(role="banana", content="x")  # type: ignore[arg-type]
 
 
 # --- ToolPolicy ---------------------------------------------------------
+
 
 class TestToolPolicy:
     def test_empty_policy_denies(self):
@@ -93,6 +97,7 @@ class TestToolPolicy:
 
 # --- EnrichedPointer ---------------------------------------------------
 
+
 class TestEnrichedPointer:
     def test_basic_pointer(self):
         p = EnrichedPointer(next_tool="t2", kwargs={"x": 1}, reason="why")
@@ -107,6 +112,7 @@ class TestEnrichedPointer:
 
 
 # --- Observation -------------------------------------------------------
+
 
 class TestObservation:
     def test_basic_observation(self):
@@ -123,6 +129,7 @@ class TestObservation:
 
 # --- ToolCall ----------------------------------------------------------
 
+
 class TestToolCall:
     def test_basic(self):
         tc = ToolCall(name="t1", kwargs={"a": 1})
@@ -135,6 +142,7 @@ class TestToolCall:
 
 
 # --- FinalAnswer -------------------------------------------------------
+
 
 class TestFinalAnswer:
     def test_basic(self):

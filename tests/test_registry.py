@@ -68,10 +68,12 @@ def test_get_missing_raises():
 
 
 def test_undecorated_function_raises():
+    from adjacency_agents.errors import InvalidToolSchemaError
+
     def plain():
         return "x"
 
-    with pytest.raises(Exception):
+    with pytest.raises(InvalidToolSchemaError):
         ToolRegistry([plain])
 
 

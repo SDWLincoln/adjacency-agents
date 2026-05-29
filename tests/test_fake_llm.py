@@ -33,7 +33,7 @@ def test_returns_scripted_string_then_advances():
 
 def test_running_out_of_script_raises():
     fake = FakeLLMClient(script=[])
-    with pytest.raises(Exception):
+    with pytest.raises(AssertionError):
         fake.complete(messages=_msgs(), tools=[])
 
 
@@ -48,8 +48,10 @@ def test_records_calls():
 
 def test_rejects_tool_call_when_disallowed():
     """§18.3.7 — when allow_tool_calls=False, ToolCall in script is an error."""
+    from adjacency_agents.errors import SynthesisError
+
     fake = FakeLLMClient(script=[ToolCall(name="t")])
-    with pytest.raises(Exception):
+    with pytest.raises(SynthesisError):
         fake.complete(messages=_msgs(), tools=[], allow_tool_calls=False)
 
 

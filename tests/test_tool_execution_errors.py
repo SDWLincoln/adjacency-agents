@@ -11,7 +11,6 @@ from adjacency_agents import (
     tool_node,
 )
 from adjacency_agents.errors import (
-    InvalidTransitionError,
     ToolExecutionError,
     ToolNotAllowedError,
 )
@@ -40,6 +39,7 @@ def boom_async() -> str:
 
 # --- raise mode --------------------------------------------------------
 
+
 class TestRaiseMode:
     def test_exception_becomes_tool_execution_error(self):
         fake = FakeLLMClient(script=[ToolCall(name="boom")])
@@ -61,6 +61,7 @@ class TestRaiseMode:
 
 # --- final mode --------------------------------------------------------
 
+
 class TestFinalMode:
     def test_returns_safe_message(self):
         fake = FakeLLMClient(script=[ToolCall(name="boom")])
@@ -76,6 +77,7 @@ class TestFinalMode:
 
 
 # --- synthesize mode ---------------------------------------------------
+
 
 class TestSynthesizeMode:
     def test_no_internal_names_or_traceback_sent(self):
@@ -106,6 +108,7 @@ class TestSynthesizeMode:
 
 
 # --- failure mid-chain leaks nothing ----------------------------------
+
 
 @tool_node(
     requires=["public"],
@@ -147,9 +150,7 @@ class TestChainErrorLeakage:
         leaked_terms = ["chain_a", "chain_b", "chain_c", "RuntimeError", "Traceback"]
         for msg in synth["messages"]:
             for term in leaked_terms:
-                assert term not in msg.content, (
-                    f"synthesis leaked {term!r} in {msg!r}"
-                )
+                assert term not in msg.content, f"synthesis leaked {term!r} in {msg!r}"
             if msg.role == "tool":
                 for term in leaked_terms:
                     assert term not in (msg.name or "")

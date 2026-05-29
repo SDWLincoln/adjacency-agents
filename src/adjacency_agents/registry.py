@@ -5,8 +5,7 @@ Per-engine instance. No global singleton (§4.1, §11.1, §22.2).
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Iterator
-from typing import Callable
+from collections.abc import Callable, Iterable, Iterator
 
 from adjacency_agents.decorators import ToolNodeSpec, get_spec, has_spec
 from adjacency_agents.errors import (

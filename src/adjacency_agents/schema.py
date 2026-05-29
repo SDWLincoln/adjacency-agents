@@ -13,9 +13,9 @@ Responsibilities:
 from __future__ import annotations
 
 import inspect
-from typing import Any, Callable
+from typing import Any
 
-from pydantic import ConfigDict, ValidationError, create_model
+from pydantic import BaseModel, ConfigDict, ValidationError, create_model
 
 from adjacency_agents.decorators import ToolNodeSpec
 from adjacency_agents.errors import (
@@ -24,7 +24,6 @@ from adjacency_agents.errors import (
     InvalidToolSchemaError,
 )
 from adjacency_agents.models import UserContext
-
 
 _MISSING = object()
 
@@ -48,19 +47,17 @@ def _signature_fields(spec: ToolNodeSpec) -> dict[str, tuple[Any, Any]]:
             raise InvalidToolSchemaError(
                 f"{spec.name!r}: parameter {name!r} is missing a type hint"
             )
-        default = (
-            ... if param.default is inspect.Parameter.empty else param.default
-        )
+        default = ... if param.default is inspect.Parameter.empty else param.default
         fields[name] = (param.annotation, default)
     return fields
 
 
-def build_input_model(spec: ToolNodeSpec):
+def build_input_model(spec: ToolNodeSpec) -> type[BaseModel]:
     """Build a Pydantic model representing the LLM-visible kwargs (§13.3)."""
     fields = _signature_fields(spec)
     # Forbid extras so the LLM cannot smuggle arbitrary keys (§13.3.10).
     config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
-    model = create_model(
+    model: type[BaseModel] = create_model(  # type: ignore[call-overload]
         f"{spec.name.title().replace('_', '')}Input",
         __config__=config,
         **fields,
@@ -68,7 +65,7 @@ def build_input_model(spec: ToolNodeSpec):
     return model
 
 
-def build_full_input_model(spec: ToolNodeSpec):
+def build_full_input_model(spec: ToolNodeSpec) -> type[BaseModel]:
     """Like ``build_input_model`` but includes injected fields too.
 
     Used by the engine to validate the *final* kwargs after injection
@@ -88,31 +85,28 @@ def build_full_input_model(spec: ToolNodeSpec):
             raise InvalidToolSchemaError(
                 f"{spec.name!r}: parameter {name!r} is missing a type hint"
             )
-        default = (
-            ... if param.default is inspect.Parameter.empty else param.default
-        )
+        default = ... if param.default is inspect.Parameter.empty else param.default
         fields[name] = (param.annotation, default)
     config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
-    return create_model(
+    model: type[BaseModel] = create_model(  # type: ignore[call-overload]
         f"{spec.name.title().replace('_', '')}FullInput",
         __config__=config,
         **fields,
     )
+    return model
 
 
 def build_json_schema(spec: ToolNodeSpec) -> dict[str, Any]:
     """Provider-agnostic JSON schema for the tool (§13.3.7)."""
     model = build_input_model(spec)
-    schema = model.model_json_schema()
+    schema: dict[str, Any] = dict(model.model_json_schema())
     if spec.description:
         schema["description"] = spec.description
     schema["title"] = spec.name
     return schema
 
 
-def validate_kwargs(
-    spec: ToolNodeSpec, kwargs: dict[str, Any]
-) -> dict[str, Any]:
+def validate_kwargs(spec: ToolNodeSpec, kwargs: dict[str, Any]) -> dict[str, Any]:
     """Validate externally supplied kwargs against the visible schema.
 
     Raises ``InvalidToolCallError`` if any injected key was supplied
@@ -122,8 +116,7 @@ def validate_kwargs(
     if injected & set(kwargs):
         leaked = sorted(injected & set(kwargs))
         raise InvalidToolCallError(
-            f"{spec.name!r}: injected arguments cannot be supplied externally: "
-            f"{leaked}"
+            f"{spec.name!r}: injected arguments cannot be supplied externally: {leaked}"
         )
     return _validate_with(build_input_model(spec), spec.name, kwargs)
 
@@ -144,16 +137,12 @@ def _validate_with(model, tool_name: str, kwargs: dict[str, Any]) -> dict[str, A
     return out
 
 
-def validate_full_kwargs(
-    spec: ToolNodeSpec, kwargs: dict[str, Any]
-) -> dict[str, Any]:
+def validate_full_kwargs(spec: ToolNodeSpec, kwargs: dict[str, Any]) -> dict[str, Any]:
     """Validate the full kwargs (including injected) before execution (§17.4.8)."""
     return _validate_with(build_full_input_model(spec), spec.name, kwargs)
 
 
-def resolve_injected_kwargs(
-    spec: ToolNodeSpec, context: UserContext
-) -> dict[str, Any]:
+def resolve_injected_kwargs(spec: ToolNodeSpec, context: UserContext) -> dict[str, Any]:
     """Resolve the values for each ``inject={...}`` parameter (§17.3)."""
     resolved: dict[str, Any] = {}
     for arg_name, path in spec.inject.items():

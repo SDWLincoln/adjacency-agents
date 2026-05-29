@@ -27,7 +27,7 @@ def test_explicit_policy_preserved():
 
 
 def test_requires_and_policy_together_raises():
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError):
 
         @tool_node(requires=["a"], policy=ToolPolicy(all_of={"b"}))
         def my_tool() -> str:
@@ -111,14 +111,12 @@ def test_inject_preserved():
     def my_tool(registration_id: str) -> str:
         return registration_id
 
-    assert get_spec(my_tool).inject == {
-        "registration_id": "metadata.registration_id"
-    }
+    assert get_spec(my_tool).inject == {"registration_id": "metadata.registration_id"}
 
 
 def test_inject_keys_must_match_parameters():
     """§10.2.14 — inject keys must correspond to existing parameters."""
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError):
 
         @tool_node(requires=["public"], inject={"ghost": "metadata.x"})
         def my_tool(name: str) -> str:

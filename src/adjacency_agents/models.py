@@ -59,10 +59,8 @@ class ToolPolicy:
             return False
         if self.none_of & caps:
             return False
-        if not self.all_of and not self.any_of:
-            # none_of alone never grants — default deny (§9.4.5, §9.4.6).
-            return False
-        return True
+        # none_of alone never grants — default deny (§9.4.5, §9.4.6).
+        return bool(self.all_of or self.any_of)
 
 
 @dataclass(frozen=True)

@@ -1,6 +1,6 @@
 """Tests for schema/validation — spec §13, §24.4."""
 
-from typing import Annotated, Literal, Optional
+from typing import Annotated, Literal
 
 import pytest
 from pydantic import BaseModel, Field
@@ -26,6 +26,7 @@ def _spec(fn):
 
 
 # --- Build / introspection ---------------------------------------------
+
 
 def test_function_with_type_hints_builds_model():
     @tool_node(requires=["public"])
@@ -78,7 +79,7 @@ def test_optional_and_literal_supported():
     @tool_node(requires=["public"])
     def t(
         kind: Literal["a", "b"],
-        note: Optional[str] = None,
+        note: str | None = None,
     ) -> str:
         return kind
 
@@ -178,6 +179,7 @@ def test_user_pydantic_model_preserved():
 
 
 # --- Injected arguments ------------------------------------------------
+
 
 def test_injected_kwarg_excluded_from_schema():
     @tool_node(

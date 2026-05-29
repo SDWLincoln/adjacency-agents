@@ -28,9 +28,7 @@ def obs_hidden() -> Observation:
 
 
 def test_synthesis_call_has_no_tools():
-    fake = FakeLLMClient(
-        script=[ToolCall(name="obs"), "synthesized text"]
-    )
+    fake = FakeLLMClient(script=[ToolCall(name="obs"), "synthesized text"])
     eng = DeterministicEngine(llm=fake, tools=[obs])
     out = eng.invoke(prompt="x", context=_ctx("public"))
     assert out.content == "synthesized text"
@@ -40,11 +38,9 @@ def test_synthesis_call_has_no_tools():
 
 def test_synthesis_rejects_tool_call_from_llm():
     """§14.7.3 — ToolCall during synthesis is SynthesisError."""
-    fake = FakeLLMClient(
-        script=[ToolCall(name="obs"), ToolCall(name="obs")]
-    )
+    fake = FakeLLMClient(script=[ToolCall(name="obs"), ToolCall(name="obs")])
     eng = DeterministicEngine(llm=fake, tools=[obs])
-    with pytest.raises(Exception):
+    with pytest.raises(SynthesisError):
         eng.invoke(prompt="x", context=_ctx("public"))
 
 

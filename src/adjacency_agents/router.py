@@ -11,9 +11,7 @@ from adjacency_agents.models import UserContext
 from adjacency_agents.registry import ToolRegistry
 
 
-def build_allowlist(
-    registry: ToolRegistry, context: UserContext
-) -> list[ToolNodeSpec]:
+def build_allowlist(registry: ToolRegistry, context: UserContext) -> list[ToolNodeSpec]:
     """Return tools whose ``ToolPolicy`` admits ``context.capabilities`` (§12.2)."""
     return [spec for spec in registry if spec.policy.allows(context.capabilities)]
 
