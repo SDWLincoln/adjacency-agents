@@ -27,7 +27,7 @@ from adjacency_agents.adapters.openai import (
     AsyncOpenAIClient,
     OpenAIClient,
 )
-from adjacency_agents.errors import SynthesisError
+from adjacency_agents.errors import InvalidToolCallError, SynthesisError
 
 # --- Fake OpenAI SDK shapes ------------------------------------------
 
@@ -266,6 +266,75 @@ class TestSynthesisToolChoice:
         adapter = OpenAIClient(client=fake, model="m")
         engine = DeterministicEngine(llm=adapter, tools=[returns_obs])
         with pytest.raises(SynthesisError):
+            engine.invoke(prompt="x", context=_ctx("public"))
+
+
+# --- Sandbox: extra_create_kwargs may not clobber engine-controlled keys ---
+
+
+class TestExtraKwargsSandbox:
+    @pytest.mark.parametrize("key", ["tools", "tool_choice", "messages", "model"])
+    def test_reserved_key_rejected_at_construction(self, key):
+        with pytest.raises(ValueError) as exc:
+            OpenAIClient(
+                client=_FakeOpenAI(script=[]),
+                model="m",
+                extra_create_kwargs={key: "anything"},
+            )
+        assert key in str(exc.value)
+
+    def test_async_reserved_key_rejected_at_construction(self):
+        with pytest.raises(ValueError) as exc:
+            AsyncOpenAIClient(
+                client=_FakeAsyncOpenAI(script=[]),
+                model="m",
+                extra_create_kwargs={"tool_choice": "auto"},
+            )
+        assert "tool_choice" in str(exc.value)
+
+    def test_non_reserved_extra_still_forwarded(self):
+        fake = _FakeOpenAI(script=[_text("ok")])
+        adapter = OpenAIClient(
+            client=fake, model="m", extra_create_kwargs={"temperature": 0.1}
+        )
+        engine = DeterministicEngine(llm=adapter, tools=[lookup])
+        engine.invoke(prompt="x", context=_ctx("public"))
+        assert fake.calls[0]["temperature"] == 0.1
+
+
+# --- One turn = one chain (§4.7): reject parallel tool calls ----------
+
+
+class TestMultipleToolCalls:
+    def test_multiple_tool_calls_rejected(self):
+        multi = _FakeCompletion(
+            choices=[
+                _FakeChoice(
+                    message=_FakeMessage(
+                        content=None,
+                        tool_calls=[
+                            _FakeToolCall(
+                                id="a",
+                                function=_FakeFunction(
+                                    name="lookup", arguments=json.dumps({"query": "x"})
+                                ),
+                            ),
+                            _FakeToolCall(
+                                id="b",
+                                function=_FakeFunction(
+                                    name="lookup", arguments=json.dumps({"query": "y"})
+                                ),
+                            ),
+                        ],
+                    ),
+                    finish_reason="tool_calls",
+                )
+            ]
+        )
+        fake = _FakeOpenAI(script=[multi])
+        adapter = OpenAIClient(client=fake, model="m")
+        engine = DeterministicEngine(llm=adapter, tools=[lookup])
+        with pytest.raises(InvalidToolCallError):
             engine.invoke(prompt="x", context=_ctx("public"))
 
 

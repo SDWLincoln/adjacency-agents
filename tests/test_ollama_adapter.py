@@ -24,7 +24,7 @@ from adjacency_agents.adapters.ollama import (
     AsyncOllamaClient,
     OllamaClient,
 )
-from adjacency_agents.errors import SynthesisError
+from adjacency_agents.errors import InvalidToolCallError, SynthesisError
 
 # --- Fake Ollama SDK shapes ------------------------------------------
 
@@ -257,6 +257,60 @@ class TestSynthesis:
         adapter = OllamaClient(client=fake, model="m")
         engine = DeterministicEngine(llm=adapter, tools=[returns_obs])
         with pytest.raises(SynthesisError):
+            engine.invoke(prompt="x", context=_ctx("public"))
+
+
+# --- Sandbox: extra_chat_kwargs may not clobber engine-controlled keys ---
+
+
+class TestExtraKwargsSandbox:
+    @pytest.mark.parametrize("key", ["tools", "messages", "model"])
+    def test_reserved_key_rejected_at_construction(self, key):
+        with pytest.raises(ValueError) as exc:
+            OllamaClient(
+                client=_FakeOllama(script=[]),
+                model="m",
+                extra_chat_kwargs={key: "anything"},
+            )
+        assert key in str(exc.value)
+
+    def test_async_reserved_key_rejected_at_construction(self):
+        with pytest.raises(ValueError) as exc:
+            AsyncOllamaClient(
+                client=_FakeAsyncOllama(script=[]),
+                model="m",
+                extra_chat_kwargs={"tools": []},
+            )
+        assert "tools" in str(exc.value)
+
+    def test_non_reserved_extra_still_forwarded(self):
+        fake = _FakeOllama(script=[_text("ok")])
+        adapter = OllamaClient(
+            client=fake, model="m", extra_chat_kwargs={"options": {"temperature": 0.0}}
+        )
+        engine = DeterministicEngine(llm=adapter, tools=[lookup])
+        engine.invoke(prompt="x", context=_ctx("public"))
+        assert fake.calls[0]["options"] == {"temperature": 0.0}
+
+
+# --- One turn = one chain (§4.7): reject parallel tool calls ----------
+
+
+class TestMultipleToolCalls:
+    def test_multiple_tool_calls_rejected(self):
+        multi = _RespBody(
+            message=_RespMessage(
+                content="",
+                tool_calls=[
+                    _Tool(function=_ToolFn(name="lookup", arguments={"query": "x"})),
+                    _Tool(function=_ToolFn(name="lookup", arguments={"query": "y"})),
+                ],
+            )
+        )
+        fake = _FakeOllama(script=[multi])
+        adapter = OllamaClient(client=fake, model="m")
+        engine = DeterministicEngine(llm=adapter, tools=[lookup])
+        with pytest.raises(InvalidToolCallError):
             engine.invoke(prompt="x", context=_ctx("public"))
 
 

@@ -22,10 +22,16 @@ Design notes:
 * ``allow_tool_calls=False`` omits ``tools`` entirely. If the model
   still returns a ``tool_use`` block, ``SynthesisError`` is raised.
 * The Anthropic response is a list of content blocks. ``text`` blocks
-  are concatenated; a ``tool_use`` block returns ``ToolCall`` with the
-  already-decoded ``input`` dict.
+  are concatenated; a single ``tool_use`` block returns ``ToolCall``
+  with the already-decoded ``input`` dict. More than one ``tool_use``
+  block raises ``InvalidToolCallError`` (one turn = one chain, §4.7).
 * ``max_tokens`` is required by the API. Defaults to 1024 unless the
   caller overrides it.
+* ``extra_create_kwargs`` may not contain engine-controlled keys
+  (``tools``, ``tool_choice``, ``messages``, ``model``, ``system``,
+  ``max_tokens``); they are rejected with ``ValueError`` at construction
+  so pass-through kwargs cannot re-advertise tools on the tool-disabled
+  synthesis call.
 """
 
 from __future__ import annotations
@@ -39,6 +45,26 @@ from adjacency_agents.models import FinalAnswer, Message, ToolCall
 __all__ = ["AnthropicClient", "AsyncAnthropicClient"]
 
 _DEFAULT_MAX_TOKENS = 1024
+
+# Keys the adapter sets itself to honor the engine's sandbox contract
+# (DDD §18.3, Invariant §7). ``extra_create_kwargs`` must not override
+# them — otherwise a caller could re-advertise ``tools``/``tool_choice``
+# on the tool-disabled synthesis call.
+_RESERVED_KEYS = frozenset(
+    {"tools", "tool_choice", "messages", "model", "system", "max_tokens"}
+)
+
+
+def _check_extra(extra: dict[str, Any] | None) -> dict[str, Any] | None:
+    if not extra:
+        return None
+    forbidden = _RESERVED_KEYS & extra.keys()
+    if forbidden:
+        raise ValueError(
+            "extra_create_kwargs may not contain engine-controlled keys: "
+            f"{sorted(forbidden)}"
+        )
+    return dict(extra)
 
 
 def _convert_tools(tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -116,14 +142,20 @@ def _parse_response(
     response: Any, *, allow_tool_calls: bool
 ) -> ToolCall | FinalAnswer | str:
     blocks = list(getattr(response, "content", []) or [])
+    tool_use_blocks = [b for b in blocks if getattr(b, "type", None) == "tool_use"]
+    if tool_use_blocks and not allow_tool_calls:
+        raise SynthesisError(
+            "Anthropic returned a tool_use block during synthesis (§14.7.3)"
+        )
+    if len(tool_use_blocks) > 1:
+        raise InvalidToolCallError(
+            f"Anthropic returned {len(tool_use_blocks)} tool_use blocks; "
+            "one turn = one chain (§4.7)"
+        )
     text_chunks: list[str] = []
     for block in blocks:
         btype = getattr(block, "type", None)
         if btype == "tool_use":
-            if not allow_tool_calls:
-                raise SynthesisError(
-                    "Anthropic returned a tool_use block during synthesis (§14.7.3)"
-                )
             name = getattr(block, "name", None)
             args = getattr(block, "input", None)
             if not isinstance(name, str) or not name:
@@ -160,7 +192,7 @@ class AnthropicClient:
         self._client = client
         self._model = model
         self._max_tokens = max_tokens
-        self._extra = dict(extra_create_kwargs) if extra_create_kwargs else None
+        self._extra = _check_extra(extra_create_kwargs)
 
     def complete(
         self,
@@ -195,7 +227,7 @@ class AsyncAnthropicClient:
         self._client = client
         self._model = model
         self._max_tokens = max_tokens
-        self._extra = dict(extra_create_kwargs) if extra_create_kwargs else None
+        self._extra = _check_extra(extra_create_kwargs)
 
     async def acomplete(
         self,

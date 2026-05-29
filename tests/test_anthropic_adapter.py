@@ -25,7 +25,7 @@ from adjacency_agents.adapters.anthropic import (
     AnthropicClient,
     AsyncAnthropicClient,
 )
-from adjacency_agents.errors import SynthesisError
+from adjacency_agents.errors import InvalidToolCallError, SynthesisError
 
 # --- Fake Anthropic SDK shapes ---------------------------------------
 
@@ -284,6 +284,60 @@ class TestSynthesisToolChoice:
         adapter = AnthropicClient(client=fake, model="m")
         engine = DeterministicEngine(llm=adapter, tools=[returns_obs])
         with pytest.raises(SynthesisError):
+            engine.invoke(prompt="x", context=_ctx("public"))
+
+
+# --- Sandbox: extra_create_kwargs may not clobber engine-controlled keys ---
+
+
+class TestExtraKwargsSandbox:
+    @pytest.mark.parametrize(
+        "key", ["tools", "tool_choice", "messages", "model", "system", "max_tokens"]
+    )
+    def test_reserved_key_rejected_at_construction(self, key):
+        with pytest.raises(ValueError) as exc:
+            AnthropicClient(
+                client=_FakeAnthropic(script=[]),
+                model="m",
+                extra_create_kwargs={key: "anything"},
+            )
+        assert key in str(exc.value)
+
+    def test_async_reserved_key_rejected_at_construction(self):
+        with pytest.raises(ValueError) as exc:
+            AsyncAnthropicClient(
+                client=_FakeAsyncAnthropic(script=[]),
+                model="m",
+                extra_create_kwargs={"tools": []},
+            )
+        assert "tools" in str(exc.value)
+
+    def test_non_reserved_extra_still_forwarded(self):
+        fake = _FakeAnthropic(script=[_text("ok")])
+        adapter = AnthropicClient(
+            client=fake, model="m", extra_create_kwargs={"temperature": 0.2}
+        )
+        engine = DeterministicEngine(llm=adapter, tools=[lookup])
+        engine.invoke(prompt="x", context=_ctx("public"))
+        assert fake.calls[0]["temperature"] == 0.2
+
+
+# --- One turn = one chain (§4.7): reject parallel tool_use blocks ------
+
+
+class TestMultipleToolCalls:
+    def test_multiple_tool_use_blocks_rejected(self):
+        multi = _FakeResponse(
+            content=[
+                _ToolUseBlock(name="lookup", input={"query": "x"}, id="t1"),
+                _ToolUseBlock(name="lookup", input={"query": "y"}, id="t2"),
+            ],
+            stop_reason="tool_use",
+        )
+        fake = _FakeAnthropic(script=[multi])
+        adapter = AnthropicClient(client=fake, model="m")
+        engine = DeterministicEngine(llm=adapter, tools=[lookup])
+        with pytest.raises(InvalidToolCallError):
             engine.invoke(prompt="x", context=_ctx("public"))
 
 

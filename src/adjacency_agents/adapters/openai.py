@@ -19,6 +19,13 @@ Design notes:
   rewritten into ``system`` messages prefixed with ``[tool: <name>]``.
 * Tool arguments returned by the model arrive as JSON strings; we
   ``json.loads`` them. Any parse error raises ``InvalidToolCallError``.
+* More than one tool call in a single response raises
+  ``InvalidToolCallError`` (one turn = one chain, §4.7) — the adapter
+  never silently executes only the first.
+* ``extra_create_kwargs`` may not contain engine-controlled keys
+  (``tools``, ``tool_choice``, ``messages``, ``model``); they are
+  rejected with ``ValueError`` at construction so pass-through kwargs
+  cannot re-advertise tools on the tool-disabled synthesis call.
 """
 
 from __future__ import annotations
@@ -31,6 +38,24 @@ from adjacency_agents.errors import InvalidToolCallError, SynthesisError
 from adjacency_agents.models import FinalAnswer, Message, ToolCall
 
 __all__ = ["OpenAIClient", "AsyncOpenAIClient"]
+
+# Keys the adapter sets itself to honor the engine's sandbox contract
+# (DDD §18.3, Invariant §7). ``extra_create_kwargs`` must not override
+# them — otherwise a caller could re-advertise ``tools``/``tool_choice``
+# on the tool-disabled synthesis call.
+_RESERVED_KEYS = frozenset({"tools", "tool_choice", "messages", "model"})
+
+
+def _check_extra(extra: dict[str, Any] | None) -> dict[str, Any] | None:
+    if not extra:
+        return None
+    forbidden = _RESERVED_KEYS & extra.keys()
+    if forbidden:
+        raise ValueError(
+            "extra_create_kwargs may not contain engine-controlled keys: "
+            f"{sorted(forbidden)}"
+        )
+    return dict(extra)
 
 
 def _convert_tools(tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -113,6 +138,11 @@ def _parse_response(
             raise SynthesisError(
                 "OpenAI returned a tool_call during synthesis (§14.7.3)"
             )
+        if len(tool_calls) > 1:
+            raise InvalidToolCallError(
+                f"OpenAI returned {len(tool_calls)} tool calls; one turn = "
+                "one chain (§4.7)"
+            )
         first = tool_calls[0]
         name = first.function.name
         raw_args = first.function.arguments or "{}"
@@ -147,7 +177,7 @@ class OpenAIClient:
     ) -> None:
         self._client = client
         self._model = model
-        self._extra = dict(extra_create_kwargs) if extra_create_kwargs else None
+        self._extra = _check_extra(extra_create_kwargs)
 
     def complete(
         self,
@@ -179,7 +209,7 @@ class AsyncOpenAIClient:
     ) -> None:
         self._client = client
         self._model = model
-        self._extra = dict(extra_create_kwargs) if extra_create_kwargs else None
+        self._extra = _check_extra(extra_create_kwargs)
 
     async def acomplete(
         self,

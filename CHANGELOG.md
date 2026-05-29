@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- Provider adapters now reject engine-controlled keys (`tools`,
+  `tool_choice`, `messages`, `model`, plus `system`/`max_tokens` for
+  Anthropic) in `extra_create_kwargs` / `extra_chat_kwargs` at
+  construction with `ValueError`. Previously these pass-through kwargs
+  were applied *after* the adapter built the payload, letting a caller
+  re-advertise tools on the tool-disabled synthesis call and defeat the
+  synthesis sandbox (DDD Invariant §7, §18.3, §23.31).
+- `release.yml`: the PyPI publish job is now gated on
+  `github.event_name == 'push'` for tag pushes, so a manual
+  `workflow_dispatch` against a `v*` tag with `target=testpypi` no
+  longer also publishes to production PyPI.
+
+### Changed
+
+- Provider adapters reject responses containing more than one tool call
+  in a single message with `InvalidToolCallError` instead of silently
+  executing the first, enforcing "one turn = one chain" (DDD §4.7,
+  §23.32).
+
 ## [0.1.0] — 2026-05-29
 
 First public release. Implements the full Documentation-Driven

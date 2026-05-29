@@ -21,6 +21,13 @@ Design notes:
 * Tool arguments returned by the SDK may be either a Python dict
   (current versions) or a JSON string (older clients / some local
   servers). Both are accepted; JSON strings are ``json.loads``ed.
+* More than one tool call in a single response raises
+  ``InvalidToolCallError`` (one turn = one chain, §4.7) — the adapter
+  never silently executes only the first.
+* ``extra_chat_kwargs`` may not contain engine-controlled keys
+  (``tools``, ``messages``, ``model``); they are rejected with
+  ``ValueError`` at construction so pass-through kwargs cannot
+  re-advertise tools on the tool-disabled synthesis call.
 """
 
 from __future__ import annotations
@@ -33,6 +40,24 @@ from adjacency_agents.errors import InvalidToolCallError, SynthesisError
 from adjacency_agents.models import FinalAnswer, Message, ToolCall
 
 __all__ = ["OllamaClient", "AsyncOllamaClient"]
+
+# Keys the adapter sets itself to honor the engine's sandbox contract
+# (DDD §18.3, Invariant §7). ``extra_chat_kwargs`` must not override
+# them — otherwise a caller could re-advertise ``tools`` on the
+# tool-disabled synthesis call.
+_RESERVED_KEYS = frozenset({"tools", "messages", "model"})
+
+
+def _check_extra(extra: dict[str, Any] | None) -> dict[str, Any] | None:
+    if not extra:
+        return None
+    forbidden = _RESERVED_KEYS & extra.keys()
+    if forbidden:
+        raise ValueError(
+            "extra_chat_kwargs may not contain engine-controlled keys: "
+            f"{sorted(forbidden)}"
+        )
+    return dict(extra)
 
 
 def _convert_tools(tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -137,6 +162,11 @@ def _parse_response(
             raise SynthesisError(
                 "Ollama returned tool_calls during synthesis (§14.7.3)"
             )
+        if len(tool_calls) > 1:
+            raise InvalidToolCallError(
+                f"Ollama returned {len(tool_calls)} tool calls; one turn = "
+                "one chain (§4.7)"
+            )
         first = tool_calls[0]
         function = _get(first, "function")
         if function is None:
@@ -168,7 +198,7 @@ class OllamaClient:
     ) -> None:
         self._client = client
         self._model = model
-        self._extra = dict(extra_chat_kwargs) if extra_chat_kwargs else None
+        self._extra = _check_extra(extra_chat_kwargs)
 
     def complete(
         self,
@@ -200,7 +230,7 @@ class AsyncOllamaClient:
     ) -> None:
         self._client = client
         self._model = model
-        self._extra = dict(extra_chat_kwargs) if extra_chat_kwargs else None
+        self._extra = _check_extra(extra_chat_kwargs)
 
     async def acomplete(
         self,
