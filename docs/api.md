@@ -236,10 +236,16 @@ Translation rules:
   reject it for lacking a paired `tool_calls` block.
 - `allow_tool_calls=False` (synthesis) sets `tool_choice="none"` and
   omits `tools`. A `tool_call` returned anyway raises `SynthesisError`.
+- More than one tool call in a single response raises
+  `InvalidToolCallError` (one turn = one chain); the adapter never
+  silently runs only the first.
 - Tool arguments are decoded from the JSON string returned by the API;
   non-JSON or non-object payloads raise `InvalidToolCallError`.
 - `extra_create_kwargs={"temperature": 0.2, ...}` lets callers pass any
-  additional argument the SDK accepts.
+  additional argument the SDK accepts. Engine-controlled keys (`tools`,
+  `tool_choice`, `messages`, `model`) are rejected with `ValueError` at
+  construction so pass-through kwargs cannot defeat the synthesis
+  sandbox.
 
 ### Anthropic
 
@@ -283,12 +289,16 @@ The adapter expects a duck-typed client with
 - `allow_tool_calls=False` (synthesis) omits `tools` entirely. A
   `tool_use` content block returned anyway raises `SynthesisError`.
 - The response is a list of content blocks; `text` blocks are
-  concatenated, the first `tool_use` block becomes a `ToolCall` with
-  the already-decoded `input` dict.
+  concatenated, a single `tool_use` block becomes a `ToolCall` with
+  the already-decoded `input` dict. More than one `tool_use` block
+  raises `InvalidToolCallError` (one turn = one chain).
 - `max_tokens` defaults to 1024 and is overridable per adapter
   instance.
 - `extra_create_kwargs` forwards any additional SDK argument
-  (`temperature`, `top_p`, `stop_sequences`, ...).
+  (`temperature`, `top_p`, `stop_sequences`, ...). Engine-controlled
+  keys (`tools`, `tool_choice`, `messages`, `model`, `system`,
+  `max_tokens`) are rejected with `ValueError` at construction so
+  pass-through kwargs cannot defeat the synthesis sandbox.
 
 ### Ollama
 
@@ -321,11 +331,16 @@ Translation rules:
   `[tool: <name>]` prefix during synthesis.
 - `allow_tool_calls=False` omits `tools`. A returned `tool_calls`
   payload raises `SynthesisError`.
+- More than one tool call in a single response raises
+  `InvalidToolCallError` (one turn = one chain).
 - Tool arguments are accepted as either a Python dict (modern Ollama
   versions) or a JSON string (older releases / community servers).
   Both are normalized to a dict for `ToolCall.kwargs`.
 - `extra_chat_kwargs` forwards SDK options
   (`options={"temperature": 0.2}`, `keep_alive`, `format="json"`, ...).
+  Engine-controlled keys (`tools`, `messages`, `model`) are rejected
+  with `ValueError` at construction so pass-through kwargs cannot defeat
+  the synthesis sandbox.
 - Only models with native tool calling (Llama 3.1+, Qwen 2.5, Mistral
   Small, ...) can drive the policy-gated flow. Models without tools
   still return plain text.

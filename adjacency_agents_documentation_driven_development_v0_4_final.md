@@ -1320,6 +1320,8 @@ class AsyncLLMClient(Protocol):
 7. Quando `allow_tool_calls=False`, o adapter deve impedir tool calling nativo e rejeitar JSON de ToolCall.
 8. A chamada de síntese final deve usar `allow_tool_calls=False`.
 9. O Fake LLM de testes deve suportar respostas programadas para ToolCall, FinalAnswer e síntese.
+10. Argumentos de passagem do adapter (`extra_create_kwargs` / `extra_chat_kwargs`) não podem sobrescrever chaves controladas pelo engine (`tools`, `tool_choice`, `messages`, `model` e equivalentes do provedor). O adapter deve rejeitar essas chaves na construção, preservando o contrato de sandbox da síntese (Invariante §7 da §8).
+11. Se o provedor retornar mais de uma tool call em uma única resposta, o adapter deve rejeitar com `InvalidToolCallError` (um turno = uma cadeia, §4.7), nunca executar silenciosamente apenas a primeira.
 
 ---
 
@@ -1582,6 +1584,8 @@ A implementação deve preservar estes invariantes:
 28. Exceções de runtime de tools devem ser encapsuladas em erro controlado.
 29. Dados sensíveis não devem aparecer em logs por padrão.
 30. Dados sensíveis, tracebacks e detalhes internos de exceção não devem ser enviados ao LLM por padrão.
+31. Kwargs de passagem do adapter nunca podem reintroduzir `tools`/`tool_choice` (ou equivalentes) na chamada de síntese; chaves controladas pelo engine são rejeitadas na construção do adapter.
+32. Um adapter nunca executa silenciosamente apenas a primeira de múltiplas tool calls retornadas; múltiplas tool calls em uma resposta são rejeitadas com `InvalidToolCallError`.
 
 ---
 
@@ -1725,6 +1729,14 @@ Testar:
 3. O LLM é chamado uma vez para seleção inicial e, se houver `Observation`, uma vez para síntese; não há chamada intermediária de roteamento.
 4. Se `max_steps` for menor que a cadeia necessária, o engine interrompe antes da síntese com `MaxStepsExceededError`.
 5. A síntese recebe apenas histórico normalizado, observation sanitizada e instrução interna; não recebe trace da cadeia.
+
+### 24.9. Sandbox e contrato dos adapters de provedor
+
+Para cada adapter (OpenAI, Anthropic, Ollama), testar:
+
+1. Construir o adapter com `extra_*_kwargs` contendo uma chave controlada pelo engine (`tools`, `tool_choice`, `messages`, `model` ou equivalente) levanta `ValueError`.
+2. Chaves não reservadas em `extra_*_kwargs` (ex.: `temperature`, `options`) continuam sendo encaminhadas ao provedor.
+3. Uma resposta do provedor com mais de uma tool call em uma única mensagem levanta `InvalidToolCallError`, sem executar nenhuma tool.
 
 ---
 
