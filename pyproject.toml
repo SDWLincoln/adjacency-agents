@@ -23,6 +23,7 @@ dev = [
 ]
 openai = ["openai>=1.0"]
 anthropic = ["anthropic>=0.40"]
+ollama = ["ollama>=0.3"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

@@ -106,7 +106,33 @@ answer = engine.invoke(
 
 `AsyncAnthropicClient` is the async counterpart.
 
-Both adapters translate the engine's provider-agnostic JSON schema
+### Ollama (local models)
+
+```bash
+pip install -e ".[ollama]"
+# and: ollama pull llama3.1
+```
+
+```python
+from ollama import Client
+
+from adjacency_agents import DeterministicEngine, UserContext, tool_node
+from adjacency_agents.adapters.ollama import OllamaClient
+
+adapter = OllamaClient(client=Client(host="http://localhost:11434"), model="llama3.1")
+engine = DeterministicEngine(llm=adapter, tools=[listar_servicos])
+answer = engine.invoke(
+    prompt="quais serviços?",
+    context=UserContext(session_id="s1", capabilities={"public"}),
+)
+```
+
+`AsyncOllamaClient` wraps `ollama.AsyncClient`. The adapter targets
+models with native tool calling (Llama 3.1+, Qwen 2.5, Mistral Small,
+etc.). SLMs that lack tool calling will still work for plain text
+answers but cannot drive policy-gated tool selection.
+
+All three adapters translate the engine's provider-agnostic JSON schema
 into the provider's tool format, parse tool calls back into the
 internal `ToolCall`, and disable tool calling during synthesis (so the
 final answer is always plain text).

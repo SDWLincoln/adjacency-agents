@@ -290,6 +290,46 @@ The adapter expects a duck-typed client with
 - `extra_create_kwargs` forwards any additional SDK argument
   (`temperature`, `top_p`, `stop_sequences`, ...).
 
+### Ollama
+
+```python
+from ollama import Client, AsyncClient
+
+from adjacency_agents.adapters.ollama import (
+    AsyncOllamaClient,
+    OllamaClient,
+)
+
+adapter = OllamaClient(client=Client(), model="llama3.1")
+async_adapter = AsyncOllamaClient(client=AsyncClient(), model="llama3.1")
+```
+
+Optional install:
+
+```bash
+pip install "adjacency-agents[ollama]"
+```
+
+The adapter expects a duck-typed client with `client.chat(**kwargs)`.
+Translation rules:
+
+- Tool schema uses the same `{type: "function", function: {...}}`
+  envelope as OpenAI; Ollama accepts it natively.
+- All four roles (`system`, `user`, `assistant`, `tool`) are mapped.
+  Unlike Anthropic, `system` stays inside the messages list.
+- `Message(role="tool")` is rewritten as a `user` message with a
+  `[tool: <name>]` prefix during synthesis.
+- `allow_tool_calls=False` omits `tools`. A returned `tool_calls`
+  payload raises `SynthesisError`.
+- Tool arguments are accepted as either a Python dict (modern Ollama
+  versions) or a JSON string (older releases / community servers).
+  Both are normalized to a dict for `ToolCall.kwargs`.
+- `extra_chat_kwargs` forwards SDK options
+  (`options={"temperature": 0.2}`, `keep_alive`, `format="json"`, ...).
+- Only models with native tool calling (Llama 3.1+, Qwen 2.5, Mistral
+  Small, ...) can drive the policy-gated flow. Models without tools
+  still return plain text.
+
 ## Errors
 
 All exceptions inherit from `AdjacencyAgentsError`:
