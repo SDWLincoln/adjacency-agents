@@ -1,8 +1,104 @@
-.venv/
+# ---------------------------------------------------------------------------
+# Root-level markdowns
+# ---------------------------------------------------------------------------
+# Ignore every .md at the repo root by default to prevent accidentally
+# committing internal notes / proposals / drafts. Tracked root docs are
+# whitelisted below. Markdowns inside docs/, examples/, src/, tests/, etc.
+# are NOT ignored — only the repo root.
+/*.md
+!/README.md
+!/CHANGELOG.md
+!/CLAUDE.md
+!/adjacency_agents_documentation_driven_development_v0_4_final.md
+
+# ---------------------------------------------------------------------------
+# Python
+# ---------------------------------------------------------------------------
 __pycache__/
-*.pyc
-.pytest_cache/
+*.py[cod]
+*$py.class
+*.so
+*.egg
 *.egg-info/
+.Python
+
+# Build artifacts
 build/
 dist/
+sdist/
+wheels/
+*.manifest
+*.spec
+
+# Tooling caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.cache/
+.hypothesis/
 .coverage
+.coverage.*
+coverage.xml
+htmlcov/
+nosetests.xml
+.pyre/
+.pytype/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+.python-version
+
+# Packaging
+pip-log.txt
+pip-delete-this-directory.txt
+MANIFEST
+
+# ---------------------------------------------------------------------------
+# Secrets / local config
+# ---------------------------------------------------------------------------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets/
+.secrets/
+
+# ---------------------------------------------------------------------------
+# Editors / IDEs
+# ---------------------------------------------------------------------------
+.idea/
+.vscode/
+*.swp
+*.swo
+*.swn
+*~
+.*.sw?
+
+# ---------------------------------------------------------------------------
+# Notebooks
+# ---------------------------------------------------------------------------
+.ipynb_checkpoints/
+
+# ---------------------------------------------------------------------------
+# OS junk
+# ---------------------------------------------------------------------------
+.DS_Store
+.AppleDouble
+.LSOverride
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# ---------------------------------------------------------------------------
+# Logs and temp files
+# ---------------------------------------------------------------------------
+*.log
+*.tmp
+*.bak
+*.orig
